@@ -9,11 +9,11 @@
       "type": "build"
     },
     {
-      "name": "@types/node",
+      "name": "@types/mailparser",
       "type": "build"
     },
     {
-      "name": "@types/nodemailer",
+      "name": "@types/node",
       "type": "build"
     },
     {
@@ -86,12 +86,20 @@
       "type": "build"
     },
     {
-      "name": "aws-cdk-lib",
-      "version": "^2.150.0",
+      "name": "@aws-sdk/client-s3",
       "type": "runtime"
     },
     {
-      "name": "aws-sdk",
+      "name": "@aws-sdk/client-secrets-manager",
+      "type": "runtime"
+    },
+    {
+      "name": "@aws-sdk/client-sesv2",
+      "type": "runtime"
+    },
+    {
+      "name": "aws-cdk-lib",
+      "version": "^2.150.0",
       "type": "runtime"
     },
     {
@@ -100,7 +108,7 @@
       "type": "runtime"
     },
     {
-      "name": "nodemailer",
+      "name": "mailparser",
       "type": "runtime"
     }
   ],

@@ -17,10 +17,16 @@ export class ForwardOtherEmailStack extends Stack {
       functionName: 'forward-other-email',
       entry: 'src/handler.ts',
       handler: 'handler',
-      runtime: Runtime.NODEJS_20_X,
+      runtime: Runtime.NODEJS_22_X,
       role,
       memorySize: 128,
       timeout: Duration.seconds(30),
+      environment: {
+        SECRET_NAME: 'forward-other-email-secrets',
+      },
+      bundling: {
+        externalModules: ['@aws-sdk/*'],
+      },
     });
   }
 }

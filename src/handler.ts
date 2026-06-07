@@ -1,70 +1,54 @@
-import type { Callback, Context, S3Event } from 'aws-lambda';
-import * as aws from 'aws-sdk';
-import * as nodemailer from 'nodemailer';
+import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { GetSecretValueCommand, SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
+import { SendEmailCommand, SESv2Client } from '@aws-sdk/client-sesv2';
+import type { S3Event } from 'aws-lambda';
+import { simpleParser } from 'mailparser';
 
-// Gymnastics to avoid using any or double casting with unknown
-// This allows me to sleep at night.
-declare module 'nodemailer' {
-  interface TransportOptions {
-    SES?: AWS.SES;
-  }
+interface SecretConfig {
+  bucket: string;
+  fromEmail: string;
+  toEmail: string;
 }
 
-const ses = new aws.SES();
-const s3 = new aws.S3();
-const transporter = nodemailer.createTransport({
-  SES: ses,
-});
+const ses = new SESv2Client({});
+const s3 = new S3Client({});
+const secretsManager = new SecretsManagerClient({});
 
-function getS3File(bucket: string, key: string) {
-  return new Promise<AWS.S3.GetObjectOutput>(function (resolve, reject) {
-    s3.getObject(
-      {
-        Bucket: bucket,
-        Key: key,
-      },
-      function (err: AWS.AWSError | null, data: AWS.S3.GetObjectOutput) {
-        if (err) return reject(err);
-        else return resolve(data);
-      },
-    );
+// Resolved once at cold start and cached for subsequent invocations
+const configPromise: Promise<SecretConfig> = secretsManager
+  .send(new GetSecretValueCommand({ SecretId: process.env.SECRET_NAME! }))
+  .then(result => {
+    if (!result.SecretString) throw new Error('Secret has no string value');
+    return JSON.parse(result.SecretString) as SecretConfig;
   });
+
+async function getS3File(bucket: string, key: string): Promise<Buffer> {
+  const response = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+  if (!response.Body) throw new Error('S3 object has no body');
+  return Buffer.from(await response.Body.transformToByteArray());
 }
 
-export const handler = function (event: S3Event, _context: Context, callback: Callback) {
-
-  const bucket = 'bil-email';
+export const handler = async function (event: S3Event): Promise<void> {
+  const config = await configPromise;
   const messageKey = event.Records[0].s3.object.key;
+  console.log('Processing message: ', messageKey);
 
-  getS3File(bucket, messageKey)
-    .then(function (fileData: AWS.S3.GetObjectOutput) {
-      const mailOptions = {
-        from: 'forward@bill-lenoir.com',
-        subject: 'Other Email',
-        text: messageKey,
-        to: 'bill@bill-lenoir.com',
-        attachments: [
-          {
-            filename: messageKey,
-            content: fileData.Body != null ? Buffer.from(fileData.Body as Uint8Array) : undefined,
-          },
-        ],
-      };
+  const fileData = await getS3File(config.bucket, messageKey);
+  const parsed = await simpleParser(fileData);
 
-      void transporter.sendMail(mailOptions, function (err: Error | null, _info: nodemailer.SentMessageInfo) {
-        if (err) {
-          console.log(err);
-          console.log('Error sending email');
-          callback(err);
-        } else {
-          console.log('Email sent successfully');
-          callback();
-        }
-      });
-    })
-    .catch(function (error: unknown) {
-      console.log(error);
-      console.log('Error getting attachment from S3');
-      callback(error instanceof Error ? error : new Error(String(error)));
-    });
+  await ses.send(new SendEmailCommand({
+    FromEmailAddress: config.fromEmail,
+    Destination: { ToAddresses: [config.toEmail] },
+    Content: {
+      Simple: {
+        Subject: { Data: parsed.subject ?? '(no subject)' },
+        Body: {
+          Text: { Data: parsed.text ?? '' },
+          Html: parsed.html ? { Data: parsed.html } : undefined,
+        },
+      },
+    },
+  }));
+  console.log('Email forwarded successfully to:', config.toEmail);
+
 };

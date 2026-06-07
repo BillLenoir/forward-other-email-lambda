@@ -5,11 +5,11 @@ const project = new awscdk.AwsCdkTypeScriptApp({
   name: 'ses-forwarder',
   packageManager: javascript.NodePackageManager.NPM,
   projenrcTs: true,
-  gitignore: ['.env'],
+  gitignore: ['.env', '.claude/'],
   prettier: true,
 
-  deps: ['aws-sdk', 'nodemailer'],
-  devDeps: ['@types/nodemailer', '@types/aws-lambda', 'eslint-config-prettier'],
+  deps: ['@aws-sdk/client-s3', '@aws-sdk/client-secrets-manager', '@aws-sdk/client-sesv2', 'mailparser'],
+  devDeps: ['@types/aws-lambda', 'eslint-config-prettier', '@types/mailparser'],
 });
 
 project.eslint?.addRules({

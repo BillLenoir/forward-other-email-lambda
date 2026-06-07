@@ -29,8 +29,8 @@
     "types": [
       "aws-lambda",
       "jest",
-      "node",
-      "nodemailer"
+      "mailparser",
+      "node"
     ],
     "moduleResolution": "nodenext",
     "typeRoots": [
