@@ -1,8 +1,7 @@
 {
   "dependencies": [
     {
-      "name": "@stylistic/eslint-plugin",
-      "version": "^2",
+      "name": "@types/aws-lambda",
       "type": "build"
     },
     {
@@ -11,6 +10,10 @@
     },
     {
       "name": "@types/node",
+      "type": "build"
+    },
+    {
+      "name": "@types/nodemailer",
       "type": "build"
     },
     {
@@ -33,11 +36,19 @@
       "type": "build"
     },
     {
+      "name": "eslint-config-prettier",
+      "type": "build"
+    },
+    {
       "name": "eslint-import-resolver-typescript",
       "type": "build"
     },
     {
       "name": "eslint-plugin-import",
+      "type": "build"
+    },
+    {
+      "name": "eslint-plugin-prettier",
       "type": "build"
     },
     {
@@ -52,6 +63,10 @@
     {
       "name": "jest-junit",
       "version": "^17",
+      "type": "build"
+    },
+    {
+      "name": "prettier",
       "type": "build"
     },
     {
@@ -76,8 +91,16 @@
       "type": "runtime"
     },
     {
+      "name": "aws-sdk",
+      "type": "runtime"
+    },
+    {
       "name": "constructs",
       "version": "^10.5.1",
+      "type": "runtime"
+    },
+    {
+      "name": "nodemailer",
       "type": "runtime"
     }
   ],

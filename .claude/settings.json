@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p /Users/bill/dev/forward-other-email-lambda/.vscode)"
+    ],
+    "additionalDirectories": [
+      "/Users/bill/dev/forward-other-email-lambda"
+    ]
+  }
+}

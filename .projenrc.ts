@@ -5,10 +5,17 @@ const project = new awscdk.AwsCdkTypeScriptApp({
   name: 'ses-forwarder',
   packageManager: javascript.NodePackageManager.NPM,
   projenrcTs: true,
+  gitignore: ['.env'],
+  prettier: true,
 
-  // deps: [],                /* Runtime dependencies of this module. */
-  // description: undefined,  /* The description is just a string that helps people understand the purpose of the package. */
-  // devDeps: [],             /* Build dependencies for this module. */
-  // packageName: undefined,  /* The "name" in package.json. */
+  deps: ['aws-sdk', 'nodemailer'],
+  devDeps: ['@types/nodemailer', '@types/aws-lambda', 'eslint-config-prettier'],
 });
+
+project.eslint?.addRules({
+  '@typescript-eslint/no-explicit-any': ['error'],
+  '@typescript-eslint/consistent-type-imports': ['error', { prefer: 'type-imports' }],
+});
+
+project.eslint?.addExtends('prettier');
 project.synth();
