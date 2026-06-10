@@ -1,11 +1,15 @@
 import { App } from 'aws-cdk-lib';
 import { Template } from 'aws-cdk-lib/assertions';
-import { MyStack } from '../src/main';
+import { ForwardOtherEmailStack } from '../src/forward-other-email-stack';
 
-test('Snapshot', () => {
-  const app = new App();
-  const stack = new MyStack(app, 'test');
+process.env.LAMBDA_ROLE_ARN = 'arn:aws:iam::123456789:role/test-role';
 
-  const template = Template.fromStack(stack);
-  expect(template.toJSON()).toMatchSnapshot();
+describe('ForwardOtherEmailStack', () => {
+  it('matches the snapshot', () => {
+    const app = new App();
+    const stack = new ForwardOtherEmailStack(app, 'test');
+
+    const template = Template.fromStack(stack);
+    expect(template.toJSON()).toMatchSnapshot();
+  });
 });
