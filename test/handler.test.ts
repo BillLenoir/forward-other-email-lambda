@@ -20,6 +20,9 @@ const sesMock = mockClient(SESv2Client);
 const mockSimpleParser = simpleParser as jest.MockedFunction<
   typeof simpleParser
 >;
+
+// ParsedMail requires these fields; defaults satisfy the type so each
+// test only needs to override what it cares about.
 const makeParsedMail = (overrides: Partial<ParsedMail>): ParsedMail => ({
   attachments: [],
   headers: new Map(),
@@ -34,34 +37,39 @@ beforeEach(() => {
   sesMock.reset();
 });
 
+const mockConfig = {
+  bucket: 'test-bucket',
+  fromEmail: 'from@test.com',
+  toEmail: 'to@test.com',
+};
+
+const mockEvent = {
+  Records: [{ s3: { object: { key: 'test-key' } } }],
+} as S3Event;
+
+// The real StreamingBlobPayloadOutputTypes has more methods than
+// handler.ts uses; this cast provides just transformToByteArray.
+const mockS3Body = {
+  transformToByteArray: jest.fn().mockResolvedValue(new Uint8Array()),
+} as unknown as StreamingBlobPayloadOutputTypes;
+
 describe('handler', () => {
   describe('email forwarding', () => {
-    it('forwards email with correct fromEmail, toEmail, and subject', async () => {
+    beforeEach(() => {
       secretsMock.on(GetSecretValueCommand).resolves({
-        SecretString: JSON.stringify({
-          bucket: 'test-bucket',
-          fromEmail: 'from@test.com',
-          toEmail: 'to@test.com',
-        }),
+        SecretString: JSON.stringify(mockConfig),
       });
+      s3Mock.on(GetObjectCommand).resolves({ Body: mockS3Body });
+      sesMock.on(SendEmailCommand).resolves({});
+    });
 
-      s3Mock.on(GetObjectCommand).resolves({
-        Body: {
-          transformToByteArray: jest.fn().mockResolvedValue(new Uint8Array()),
-        } as unknown as StreamingBlobPayloadOutputTypes,
-      });
-
+    it('forwards email with correct fromEmail, toEmail, and subject', async () => {
       mockSimpleParser.mockResolvedValue(
         makeParsedMail({ subject: 'Test Subject', text: 'Test body' }),
       );
 
-      sesMock.on(SendEmailCommand).resolves({});
-
-      const mockEvent = {
-        Records: [{ s3: { object: { key: 'test-key' } } }],
-      } as S3Event;
-
       await handler(mockEvent);
+
       expect(sesMock).toHaveReceivedCommandWith(SendEmailCommand, {
         FromEmailAddress: 'from@test.com',
         Destination: { ToAddresses: ['to@test.com'] },
@@ -74,29 +82,10 @@ describe('handler', () => {
     });
 
     it('uses "(no subject)" when subject is missing', async () => {
-      secretsMock.on(GetSecretValueCommand).resolves({
-        SecretString: JSON.stringify({
-          bucket: 'test-bucket',
-          fromEmail: 'from@test.com',
-          toEmail: 'to@test.com',
-        }),
-      });
-
-      s3Mock.on(GetObjectCommand).resolves({
-        Body: {
-          transformToByteArray: jest.fn().mockResolvedValue(new Uint8Array()),
-        } as unknown as StreamingBlobPayloadOutputTypes,
-      });
-
       mockSimpleParser.mockResolvedValue(makeParsedMail({ text: 'Test body' }));
 
-      sesMock.on(SendEmailCommand).resolves({});
-
-      const mockEvent = {
-        Records: [{ s3: { object: { key: 'test-key' } } }],
-      } as S3Event;
-
       await handler(mockEvent);
+
       expect(sesMock).toHaveReceivedCommandWith(SendEmailCommand, {
         Content: expect.objectContaining({
           Simple: expect.objectContaining({
@@ -105,13 +94,93 @@ describe('handler', () => {
         }),
       });
     });
+
+    it('omits Html when parsed email has no HTML', async () => {
+      mockSimpleParser.mockResolvedValue(makeParsedMail({ text: 'Test body' }));
+
+      await handler(mockEvent);
+
+      // objectContaining compares actual.Html to undefined via normal property
+      // access, so this matches whether Html is absent or explicitly undefined.
+      // Both mean "no Html field was set."
+      expect(sesMock).toHaveReceivedCommandWith(SendEmailCommand, {
+        Content: expect.objectContaining({
+          Simple: expect.objectContaining({
+            Body: expect.objectContaining({
+              Html: undefined,
+            }),
+          }),
+        }),
+      });
+    });
+
+    it('includes Html when parsed email has HTML', async () => {
+      mockSimpleParser.mockResolvedValue(
+        makeParsedMail({ text: 'Test body', html: '<p>Test body</p>' }),
+      );
+
+      await handler(mockEvent);
+
+      expect(sesMock).toHaveReceivedCommandWith(SendEmailCommand, {
+        Content: expect.objectContaining({
+          Simple: expect.objectContaining({
+            Body: expect.objectContaining({
+              Html: { Data: '<p>Test body</p>' },
+            }),
+          }),
+        }),
+      });
+    });
   });
 
   describe('error handling', () => {
-    it('throws when S3 response.Body is null', () => {});
+    beforeEach(() => {
+      secretsMock.on(GetSecretValueCommand).resolves({
+        SecretString: JSON.stringify(mockConfig),
+      });
+      s3Mock.on(GetObjectCommand).resolves({ Body: mockS3Body });
+      mockSimpleParser.mockResolvedValue(makeParsedMail({ text: 'Test body' }));
+      sesMock.on(SendEmailCommand).resolves({});
+    });
 
-    it('propagates SES send errors', () => {});
+    it('throws when S3 response.Body is null', async () => {
+      s3Mock.on(GetObjectCommand).resolves({});
 
-    it('throws when SecretString is missing', () => {});
+      await expect(handler(mockEvent)).rejects.toThrow('S3 object has no body');
+    });
+
+    it('propagates SES send errors', async () => {
+      sesMock.on(SendEmailCommand).rejects(new Error('SES failure'));
+
+      await expect(handler(mockEvent)).rejects.toThrow('SES failure');
+    });
+
+    it('throws when SecretString is missing', async () => {
+      // handler.ts caches its config in a module-level variable after the first
+      // successful call, so by now getConfig() would just return the cached
+      // value without calling SecretsManager again. isolateModulesAsync gives
+      // us a fresh copy of handler.ts with that cache reset, but the fresh
+      // copy also gets a fresh @aws-sdk/client-secrets-manager module, which
+      // the outer secretsMock doesn't intercept. So we build a new mockClient
+      // against the fresh SecretsManagerClient too.
+      await jest.isolateModulesAsync(async () => {
+        const { mockClient: freshMockClient } =
+          await import('aws-sdk-client-mock');
+
+        const {
+          SecretsManagerClient: FreshSecretsManagerClient,
+          GetSecretValueCommand: FreshGetSecretValueCommand,
+        } = await import('@aws-sdk/client-secrets-manager');
+
+        const freshSecretsMock = freshMockClient(FreshSecretsManagerClient);
+        freshSecretsMock.on(FreshGetSecretValueCommand).resolves({});
+
+        const { handler: freshHandler } = await import('../src/handler.js');
+
+        await expect(freshHandler(mockEvent)).rejects.toThrow(
+          'Secret has no string value',
+        );
+      });
+    });
   });
 });

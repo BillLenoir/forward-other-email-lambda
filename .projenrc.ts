@@ -12,7 +12,13 @@ const project = new awscdk.AwsCdkTypeScriptApp({
       singleQuote: true,
     },
   },
-
+  jestOptions: {
+    jestConfig: {
+      moduleNameMapper: {
+        '^(\\.{1,2}/.*)\\.js$': '$1',
+      },
+    },
+  },
   deps: [
     '@aws-sdk/client-s3',
     '@aws-sdk/client-secrets-manager',
