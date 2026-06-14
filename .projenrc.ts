@@ -19,6 +19,12 @@ const project = new awscdk.AwsCdkTypeScriptApp({
       },
     },
   },
+  buildWorkflowOptions: {
+    env: {
+      LAMBDA_ROLE_ARN: '${{ secrets.LAMBDA_ROLE_ARN }}',
+    },
+  },
+
   deps: [
     '@aws-sdk/client-s3',
     '@aws-sdk/client-secrets-manager',
