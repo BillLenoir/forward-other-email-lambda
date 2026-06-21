@@ -116,7 +116,13 @@ describe('handler', () => {
 
     it('includes Html when parsed email has HTML', async () => {
       mockSimpleParser.mockResolvedValue(
-        makeParsedMail({ text: 'Test body', html: '<p>Test body</p>' }),
+        makeParsedMail({
+          from: {
+            text: 'Sender <sender@example.com>',
+          } as unknown as ParsedMail['from'],
+          text: 'Test body',
+          html: '<p>Test body</p>',
+        }),
       );
 
       await handler(mockEvent);
@@ -125,7 +131,32 @@ describe('handler', () => {
         Content: expect.objectContaining({
           Simple: expect.objectContaining({
             Body: expect.objectContaining({
-              Html: { Data: '<p>Test body</p>' },
+              Html: {
+                Data: '<p><strong>From:</strong> Sender &lt;sender@example.com&gt;</p><hr><p>Test body</p>',
+              },
+            }),
+          }),
+        }),
+      });
+    });
+
+    it('includes original sender in text body', async () => {
+      mockSimpleParser.mockResolvedValue(
+        makeParsedMail({
+          from: {
+            text: 'Sender <sender@example.com>',
+          } as unknown as ParsedMail['from'],
+          text: 'Hello',
+        }),
+      );
+
+      await handler(mockEvent);
+
+      expect(sesMock).toHaveReceivedCommandWith(SendEmailCommand, {
+        Content: expect.objectContaining({
+          Simple: expect.objectContaining({
+            Body: expect.objectContaining({
+              Text: { Data: 'From: Sender <sender@example.com>\n\nHello' },
             }),
           }),
         }),

@@ -16,7 +16,7 @@ exports[`ForwardOtherEmailStack matches the snapshot 1`] = `
           "S3Bucket": {
             "Fn::Sub": "cdk-hnb659fds-assets-\${AWS::AccountId}-\${AWS::Region}",
           },
-          "S3Key": "7a9fdd591dd8771797848d23037a83d6980753860dce2c3a5fe2c6d50c6d7645.zip",
+          "S3Key": "05bc337e0b8982da603746ba39e687364043b1ba8a862dc01122d150ce034a6d.zip",
         },
         "Environment": {
           "Variables": {
