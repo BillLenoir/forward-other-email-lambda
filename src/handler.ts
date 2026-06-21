@@ -46,6 +46,7 @@ export const handler = async (event: S3Event): Promise<void> => {
 
   const fileData = await getS3File(config.bucket, messageKey);
   const parsed = await simpleParser(fileData);
+  const fromText = parsed.from?.text ?? '(unknown sender)';
 
   await ses.send(
     new SendEmailCommand({
@@ -55,8 +56,12 @@ export const handler = async (event: S3Event): Promise<void> => {
         Simple: {
           Subject: { Data: parsed.subject ?? '(no subject)' },
           Body: {
-            Text: { Data: parsed.text ?? '' },
-            Html: parsed.html ? { Data: parsed.html } : undefined,
+            Text: { Data: `From: ${fromText}\n\n${parsed.text ?? ''}` },
+            Html: parsed.html
+              ? {
+                  Data: `<p><strong>From:</strong> ${fromText.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p><hr>${parsed.html}`,
+                }
+              : undefined,
           },
         },
       },
